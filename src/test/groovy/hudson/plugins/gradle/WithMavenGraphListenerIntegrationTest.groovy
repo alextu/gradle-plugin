@@ -59,7 +59,7 @@ node {
    stage('Build') {
         node('$AGENT_NAME') {
             withMaven(maven: '$mavenInstallationName') {
-                sh "ls /home/test/slave/"
+                sh "ls /tmp/gradle"
                 sh "env"
                 sh "mvn package"
             }
