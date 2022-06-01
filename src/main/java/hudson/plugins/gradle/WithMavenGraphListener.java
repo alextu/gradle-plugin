@@ -1,5 +1,6 @@
 package hudson.plugins.gradle;
 
+import hudson.EnvVars;
 import hudson.Extension;
 import hudson.FilePath;
 import org.jenkinsci.plugins.workflow.actions.WorkspaceAction;
@@ -8,10 +9,11 @@ import org.jenkinsci.plugins.workflow.flow.GraphListener;
 import org.jenkinsci.plugins.workflow.graph.FlowNode;
 import org.jenkinsci.plugins.workflow.graph.StepNode;
 import org.jenkinsci.plugins.workflow.steps.StepDescriptor;
+import org.jenkinsci.plugins.workflow.support.actions.EnvironmentAction;
 
 import java.io.IOException;
 
-@Extension
+//@Extension
 public class WithMavenGraphListener implements GraphListener {
     private FilePath currentWorkspace = null;
 
@@ -19,9 +21,21 @@ public class WithMavenGraphListener implements GraphListener {
     public void onNewHead(FlowNode node) {
         if (node instanceof StepStartNode) {
             WorkspaceAction action = node.getAction(WorkspaceAction.class);
-            if (action != null) {
+            if (action != null && action.getWorkspace() != null && currentWorkspace == null) {
+                // TODO not threadsafe ?
                 currentWorkspace = action.getWorkspace();
                 System.out.println("In step start " + currentWorkspace);
+                // TODO: inject env var here ? how ?
+                EnvironmentAction environmentAction = node.getAction(EnvironmentAction.class);
+                System.out.println("Env action: " +environmentAction);
+                try {
+                    EnvVars environment = environmentAction.getEnvironment();
+                    System.out.println("Env: " + environment);
+                    environment.put("MAVEN_OPTS", "-Dmaven.ext.class.path=/tmp/gradle-enterprise-maven-extension-1.14.1.jar");
+                } catch (IOException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                // EnvVars mavenOpts = new EnvVars("MAVEN_OPTS", "-Dmaven.ext.class.path=/tmp/gradle-enterprise-maven-extension-1.14.1.jar");
             }
             StepDescriptor descriptor = ((StepNode) node).getDescriptor();
             System.out.println("Node id:" + node.getId());

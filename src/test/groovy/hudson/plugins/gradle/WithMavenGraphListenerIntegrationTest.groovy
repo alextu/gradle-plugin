@@ -1,5 +1,11 @@
 package hudson.plugins.gradle
 
+import com.cloudbees.plugins.credentials.Credentials
+import com.cloudbees.plugins.credentials.CredentialsScope
+import com.cloudbees.plugins.credentials.SystemCredentialsProvider
+import com.cloudbees.plugins.credentials.domains.Domain
+import com.cloudbees.plugins.credentials.impl.UsernamePasswordCredentialsImpl
+import hudson.slaves.DumbSlave
 import hudson.tasks.Maven
 import jenkins.model.Jenkins
 import jenkins.mvn.DefaultGlobalSettingsProvider
@@ -8,6 +14,8 @@ import jenkins.mvn.GlobalMavenConfig
 import jenkins.plugins.git.GitSampleRepoRule
 import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition
 import org.jenkinsci.plugins.workflow.job.WorkflowJob
+import org.jenkinsci.test.acceptance.docker.DockerRule
+import org.jenkinsci.test.acceptance.docker.fixtures.SshdContainer
 import org.junit.Rule
 import org.jvnet.hudson.test.JenkinsRule
 import org.jvnet.hudson.test.ToolInstallations
@@ -17,7 +25,10 @@ import java.nio.file.Files
 class WithMavenGraphListenerIntegrationTest extends AbstractIntegrationTest {
 
     @Rule
-    public GitSampleRepoRule gitRepoRule = new GitSampleRepoRule();
+    public GitSampleRepoRule gitRepoRule = new GitSampleRepoRule()
+
+    @Rule
+    public DockerRule<NonMavenJavaContainer> mavenWithMavenHomeContainerRule = new DockerRule<>(NonMavenJavaContainer.class)
 
     def 'run listener on pipeline build'() {
         given:
@@ -40,6 +51,7 @@ node {
         node {
             git(\$/$gitRepoRule/\$)
             withMaven(maven: '$mavenInstallationName') {
+                sh "env"
                 sh "mvn package"
             }
         }
@@ -52,6 +64,29 @@ node {
 
         then:
         println JenkinsRule.getLog(build)
+    }
+
+    private void registerAgentForContainer(SshdContainer container) throws Exception {
+        addTestSshCredentials();
+        registerAgentForSlaveContainer(container);
+    }
+
+    private void registerAgentForSlaveContainer(SshdContainer slaveContainer) throws Exception {
+        SSHLauncher sshLauncher = new SSHLauncher(slaveContainer.ipBound(22), slaveContainer.port(22), "test");
+
+        DumbSlave agent = new DumbSlave(AGENT_NAME, SLAVE_BASE_PATH, sshLauncher);
+        agent.setNumExecutors(1);
+        agent.setRetentionStrategy(RetentionStrategy.INSTANCE);
+
+        j.jenkins.addNode(agent);
+    }
+
+    private void addTestSshCredentials() {
+        Credentials credentials = new UsernamePasswordCredentialsImpl(CredentialsScope.GLOBAL, "test", null, "test", "test");
+
+        SystemCredentialsProvider.getInstance()
+            .getDomainCredentialsMap()
+            .put(Domain.global(), Collections.singletonList(credentials));
     }
 
 //    def 'build scan is discovered from Maven build'() {
