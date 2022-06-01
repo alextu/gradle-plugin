@@ -19,6 +19,7 @@ public class MavenGeComputerListener extends ComputerListener {
         FilePath lib = c.getNode().getRootPath().child(GE_MVN_LIB);
         System.out.println("in onOnline: " + lib);
         lib.copyFrom(getClass().getResourceAsStream(GE_MVN_LIB));
+        c.getEnvironment().put("GE_MAVEN_CLASSPATH", lib.toString());
         super.onOnline(c, listener);
     }
 

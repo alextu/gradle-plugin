@@ -3,6 +3,7 @@ package hudson.plugins.gradle;
 import hudson.EnvVars;
 import hudson.Extension;
 import hudson.FilePath;
+import jenkins.model.Jenkins;
 import org.jenkinsci.plugins.workflow.actions.WorkspaceAction;
 import org.jenkinsci.plugins.workflow.cps.nodes.StepStartNode;
 import org.jenkinsci.plugins.workflow.flow.GraphListener;

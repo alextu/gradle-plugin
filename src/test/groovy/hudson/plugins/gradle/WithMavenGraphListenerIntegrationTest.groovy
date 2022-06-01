@@ -58,8 +58,8 @@ class WithMavenGraphListenerIntegrationTest extends AbstractIntegrationTest {
 node {
    stage('Build') {
         node('$AGENT_NAME') {
-            git(\$/$gitRepoRule/\$)
             withMaven(maven: '$mavenInstallationName') {
+                sh "ls /home/test/slave/"
                 sh "env"
                 sh "mvn package"
             }
