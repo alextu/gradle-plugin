@@ -5,7 +5,9 @@ import com.cloudbees.plugins.credentials.CredentialsScope
 import com.cloudbees.plugins.credentials.SystemCredentialsProvider
 import com.cloudbees.plugins.credentials.domains.Domain
 import com.cloudbees.plugins.credentials.impl.UsernamePasswordCredentialsImpl
+import hudson.plugins.sshslaves.SSHLauncher
 import hudson.slaves.DumbSlave
+import hudson.slaves.RetentionStrategy
 import hudson.tasks.Maven
 import jenkins.model.Jenkins
 import jenkins.mvn.DefaultGlobalSettingsProvider
@@ -24,14 +26,21 @@ import java.nio.file.Files
 
 class WithMavenGraphListenerIntegrationTest extends AbstractIntegrationTest {
 
+    private static final String SSH_CREDENTIALS_ID = "test";
+    private static final String AGENT_NAME = "remote";
+    private static final String SLAVE_BASE_PATH = "/home/test/slave";
+
     @Rule
     public GitSampleRepoRule gitRepoRule = new GitSampleRepoRule()
 
     @Rule
-    public DockerRule<NonMavenJavaContainer> mavenWithMavenHomeContainerRule = new DockerRule<>(NonMavenJavaContainer.class)
+    public DockerRule<JavaGitContainer> javaGitContainerRule = new DockerRule<>(JavaGitContainer.class);
 
     def 'run listener on pipeline build'() {
         given:
+        registerAgentForContainer(javaGitContainerRule.get())
+
+        and:
         gitRepoRule.init()
         Files.copy(WithMavenGraphListenerIntegrationTest.class.getResourceAsStream("pom.xml"), gitRepoRule.getRoot().toPath().resolve("pom.xml"))
         gitRepoRule.git("add", "--all");
@@ -48,7 +57,7 @@ class WithMavenGraphListenerIntegrationTest extends AbstractIntegrationTest {
         pipelineJob.setDefinition(new CpsFlowDefinition("""
 node {
    stage('Build') {
-        node {
+        node('$AGENT_NAME') {
             git(\$/$gitRepoRule/\$)
             withMaven(maven: '$mavenInstallationName') {
                 sh "env"
@@ -72,7 +81,7 @@ node {
     }
 
     private void registerAgentForSlaveContainer(SshdContainer slaveContainer) throws Exception {
-        SSHLauncher sshLauncher = new SSHLauncher(slaveContainer.ipBound(22), slaveContainer.port(22), "test");
+        SSHLauncher sshLauncher = new SSHLauncher(slaveContainer.ipBound(22), slaveContainer.port(22), SSH_CREDENTIALS_ID);
 
         DumbSlave agent = new DumbSlave(AGENT_NAME, SLAVE_BASE_PATH, sshLauncher);
         agent.setNumExecutors(1);
@@ -82,7 +91,7 @@ node {
     }
 
     private void addTestSshCredentials() {
-        Credentials credentials = new UsernamePasswordCredentialsImpl(CredentialsScope.GLOBAL, "test", null, "test", "test");
+        Credentials credentials = new UsernamePasswordCredentialsImpl(CredentialsScope.GLOBAL, SSH_CREDENTIALS_ID, null, "test", "test");
 
         SystemCredentialsProvider.getInstance()
             .getDomainCredentialsMap()
