@@ -30,10 +30,11 @@ public class MavenGeInjectorComputerListener extends ComputerListener {
         if (geServer != null) {
             if (rootPath != null) {
                 String cp = constructExtClasspath(copyResourceToAgent(GE_MVN_LIB_NAME, rootPath), copyResourceToAgent(CCUD_LIB_NAME, rootPath));
-                injectSysPropInMavenOpts(rootPath, "maven.ext.class.path", cp);
-                injectSysPropInMavenOpts(rootPath,"gradle.enterprise.url", geServer);
+                EnvVars envs = new EnvVars();
+                injectSysPropInMavenOpts(rootPath, envs, "maven.ext.class.path", cp);
+                injectSysPropInMavenOpts(rootPath, envs,"gradle.enterprise.url", geServer);
                 if (getAllowUntrusterServer() != null) {
-                    injectSysPropInMavenOpts(rootPath,"gradle.enterprise.allowUntrustedServer", geServer);
+                    injectSysPropInMavenOpts(rootPath, envs, "gradle.enterprise.allowUntrustedServer", geServer);
                 }
             }
         }
@@ -55,8 +56,7 @@ public class MavenGeInjectorComputerListener extends ComputerListener {
         return envProperty.getEnvVars().get("GRADLE_PLUGIN_GRADLE_ENTERPRISE_ALLOW_UNTRUSTED_SERVER");
     }
 
-    private void injectSysPropInMavenOpts(FilePath rootPath, String sysProp, String value) throws IOException, InterruptedException {
-        EnvVars envs = new EnvVars();
+    private void injectSysPropInMavenOpts(FilePath rootPath, EnvVars envs, String sysProp, String value) throws IOException, InterruptedException {
         appendEnv(envs, "MAVEN_OPTS", "-D" + sysProp + "=" + value);
         rootPath.act(new EnvInjectMasterEnvVarsSetter(envs));
     }
