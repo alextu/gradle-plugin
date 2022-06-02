@@ -127,8 +127,10 @@ test {
   ignoreFailures = gradle.ciBuild
   maxParallelForks = project.maxParallelForks
   retry {
-    maxRetries = 1
-    maxFailures = 10
+      if (gradle.ciBuild) {
+          maxRetries = 1
+          maxFailures = 10
+      }
   }
 }
 

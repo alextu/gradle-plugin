@@ -5,15 +5,16 @@ import com.cloudbees.plugins.credentials.CredentialsScope
 import com.cloudbees.plugins.credentials.SystemCredentialsProvider
 import com.cloudbees.plugins.credentials.domains.Domain
 import com.cloudbees.plugins.credentials.impl.UsernamePasswordCredentialsImpl
+import hudson.EnvVars
 import hudson.plugins.sshslaves.SSHLauncher
 import hudson.slaves.DumbSlave
+import hudson.slaves.EnvironmentVariablesNodeProperty
 import hudson.slaves.RetentionStrategy
 import hudson.tasks.Maven
 import jenkins.model.Jenkins
 import jenkins.mvn.DefaultGlobalSettingsProvider
 import jenkins.mvn.DefaultSettingsProvider
 import jenkins.mvn.GlobalMavenConfig
-import jenkins.plugins.git.GitSampleRepoRule
 import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition
 import org.jenkinsci.plugins.workflow.job.WorkflowJob
 import org.jenkinsci.test.acceptance.docker.DockerRule
@@ -22,45 +23,57 @@ import org.junit.Rule
 import org.jvnet.hudson.test.JenkinsRule
 import org.jvnet.hudson.test.ToolInstallations
 
-import java.nio.file.Files
-
-class WithMavenGraphListenerIntegrationTest extends AbstractIntegrationTest {
+class MavenGeInjectorComputerListenerIntegrationTest extends AbstractIntegrationTest {
 
     private static final String SSH_CREDENTIALS_ID = "test";
     private static final String AGENT_NAME = "remote";
     private static final String SLAVE_BASE_PATH = "/home/test/slave";
 
     @Rule
-    public GitSampleRepoRule gitRepoRule = new GitSampleRepoRule()
-
-    @Rule
     public DockerRule<JavaGitContainer> javaGitContainerRule = new DockerRule<>(JavaGitContainer.class);
 
-    def 'run listener on pipeline build'() {
+    def 'Can install GE extension on agent'() {
         given:
         registerAgentForContainer(javaGitContainerRule.get())
 
         and:
-        gitRepoRule.init()
-        Files.copy(WithMavenGraphListenerIntegrationTest.class.getResourceAsStream("pom.xml"), gitRepoRule.getRoot().toPath().resolve("pom.xml"))
-        gitRepoRule.git("add", "--all");
-        gitRepoRule.git("commit", "--message=addFiles")
         def pipelineJob = j.createProject(WorkflowJob)
 
         def mavenInstallation = ToolInstallations.configureMaven35()
-        Jenkins.get().getDescriptorByType(Maven.DescriptorImpl.class).setInstallations(mavenInstallation);
-        def mavenInstallationName = mavenInstallation.getName();
+        Jenkins.get().getDescriptorByType(Maven.DescriptorImpl.class).setInstallations(mavenInstallation)
+        def mavenInstallationName = mavenInstallation.getName()
+
+        EnvironmentVariablesNodeProperty prop = new EnvironmentVariablesNodeProperty()
+        EnvVars env = prop.getEnvVars()
+        env.put("GRADLE_PLUGIN_GRADLE_ENTERPRISE_ALLOW_UNTRUSTED_SERVER", "https://ge-unstable-release.grdev.net")
+        j.jenkins.getGlobalNodeProperties().add(prop)
 
         GlobalMavenConfig globalMavenConfig = j.get(GlobalMavenConfig.class);
-        globalMavenConfig.setGlobalSettingsProvider(new DefaultGlobalSettingsProvider());
-        globalMavenConfig.setSettingsProvider(new DefaultSettingsProvider());
+        globalMavenConfig.setGlobalSettingsProvider(new DefaultGlobalSettingsProvider())
+        globalMavenConfig.setSettingsProvider(new DefaultSettingsProvider())
+
+
+        def pomFile = '''<?xml version="1.0" encoding="UTF-8"?>
+                <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+                    <modelVersion>4.0.0</modelVersion>
+                    <groupId>com.example</groupId>
+                    <artifactId>my-pom</artifactId>
+                    <version>0.1-SNAPSHOT</version>
+                    <packaging>pom</packaging>
+                    <name>my-pom</name>
+                    <description>my-pom</description>
+                </project>'''
+
         pipelineJob.setDefinition(new CpsFlowDefinition("""
 node {
    stage('Build') {
         node('$AGENT_NAME') {
             withMaven(maven: '$mavenInstallationName') {
-                sh "ls /tmp/gradle"
                 sh "env"
+                sh '''cat <<EOT >> pom.xml
+$pomFile
+EOT'''
                 sh "mvn package"
             }
         }
@@ -97,35 +110,4 @@ node {
             .getDomainCredentialsMap()
             .put(Domain.global(), Collections.singletonList(credentials));
     }
-
-//    def 'build scan is discovered from Maven build'() {
-//        given:
-//        def p = j.createFreeStyleProject()
-//        p.buildersList.add(new CreateFileBuilder('pom.xml',
-//            '''<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-//  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
-//  <modelVersion>4.0.0</modelVersion>
-//  <groupId>hudson.plugins.gradle</groupId>
-//  <artifactId>maven-build-scan</artifactId>
-//  <packaging>jar</packaging>
-//  <version>1.0</version>
-//
-//  <properties>
-//    <maven.compiler.source>1.8</maven.compiler.source>
-//    <maven.compiler.target>1.8</maven.compiler.target>
-//  </properties>
-//
-//</project>'''))
-//        //p.buildersList.add(new CreateFileBuilder('.mvn/extensions.xml', buildScanExtension))
-//        ///p.buildersList.add(new CreateFileBuilder('.mvn/gradle-enterprise.xml', gradleEnterpriseConfiguration))
-//        def mavenInstallation = ToolInstallations.configureMaven35()
-//        p.buildersList.add(new Maven('package', mavenInstallation.name, null, '', '', false, null, null))
-//
-//        when:
-//        def build = j.buildAndAssertSuccess(p)
-//
-//        then:
-//        println JenkinsRule.getLog(build)
-//    }
-
 }
