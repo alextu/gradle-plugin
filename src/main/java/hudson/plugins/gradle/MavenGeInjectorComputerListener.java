@@ -19,6 +19,13 @@ public class MavenGeInjectorComputerListener extends ComputerListener {
 
     private static final String GE_MVN_LIB_NAME = "gradle-enterprise-maven-extension-1.14.1.jar";
     private static final String CCUD_LIB_NAME = "common-custom-user-data-maven-extension-1.10.1.jar";
+    // Maven system properties passed on the CLI to a Maven build
+    private static final String GE_URL_MAVEN_PROPERTY = "gradle.enterprise.url";
+    private static final String GE_ALLOW_UNTRUSTED_MAVEN_PROPERTY = "gradle.enterprise.allowUntrustedServer";
+    // Environment variables set in Jenkins Global configuration
+    private static final String INJECT_BUILD_SCAN_VAR = "JENKINSGRADLEPLUGIN_BUILD_SCAN_INJECTION";
+    private static final String GE_ALLOW_UNTRUSTED_VAR = "JENKINSGRADLEPLUGIN_GRADLE_ENTERPRISE_ALLOW_UNTRUSTED_SERVER";
+    private static final String GE_URL_VAR = "JENKINSGRADLEPLUGIN_GRADLE_ENTERPRISE_URL";
 
     @Override
     public void onOnline(Computer c, TaskListener listener) throws IOException, InterruptedException {
@@ -26,34 +33,31 @@ public class MavenGeInjectorComputerListener extends ComputerListener {
             return;
         }
         FilePath rootPath = c.getNode().getRootPath();
-        String geServer = getGeServer();
-        if (geServer != null) {
+        if (getGlobalEnvVar(INJECT_BUILD_SCAN_VAR) != null) {
             if (rootPath != null) {
                 String cp = constructExtClasspath(copyResourceToAgent(GE_MVN_LIB_NAME, rootPath), copyResourceToAgent(CCUD_LIB_NAME, rootPath));
                 EnvVars envs = new EnvVars();
                 injectSysPropInMavenOpts(rootPath, envs, "maven.ext.class.path", cp);
-                injectSysPropInMavenOpts(rootPath, envs,"gradle.enterprise.url", geServer);
-                if (getAllowUntrusterServer() != null) {
-                    injectSysPropInMavenOpts(rootPath, envs, "gradle.enterprise.allowUntrustedServer", geServer);
+
+                if (getGlobalEnvVar(GE_ALLOW_UNTRUSTED_VAR) != null) {
+                    injectSysPropInMavenOpts(rootPath, envs, GE_ALLOW_UNTRUSTED_MAVEN_PROPERTY, getGlobalEnvVar(GE_ALLOW_UNTRUSTED_VAR));
+                }
+                if (getGlobalEnvVar(GE_URL_VAR) != null) {
+                    injectSysPropInMavenOpts(rootPath, envs, GE_URL_MAVEN_PROPERTY, getGlobalEnvVar(GE_URL_VAR));
                 }
             }
         }
         super.onOnline(c, listener);
     }
 
-    private String getAllowUntrusterServer() {
-        EnvironmentVariablesNodeProperty envProperty = Jenkins.get().getGlobalNodeProperties()
-            .get(EnvironmentVariablesNodeProperty.class);
-        return envProperty.getEnvVars().get("GRADLE_PLUGIN_GRADLE_ENTERPRISE_ALLOW_UNTRUSTED_SERVER");    }
-
     private String constructExtClasspath(FilePath...libs) {
         return Stream.of(libs).map(FilePath::getRemote).collect(Collectors.joining(":"));
     }
 
-    private String getGeServer() {
+    private String getGlobalEnvVar(String varName) {
         EnvironmentVariablesNodeProperty envProperty = Jenkins.get().getGlobalNodeProperties()
             .get(EnvironmentVariablesNodeProperty.class);
-        return envProperty.getEnvVars().get("GRADLE_PLUGIN_GRADLE_ENTERPRISE_ALLOW_UNTRUSTED_SERVER");
+        return envProperty.getEnvVars().get(varName);
     }
 
     private void injectSysPropInMavenOpts(FilePath rootPath, EnvVars envs, String sysProp, String value) throws IOException, InterruptedException {

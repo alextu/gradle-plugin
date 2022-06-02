@@ -45,7 +45,9 @@ class MavenGeInjectorComputerListenerIntegrationTest extends AbstractIntegration
 
         EnvironmentVariablesNodeProperty prop = new EnvironmentVariablesNodeProperty()
         EnvVars env = prop.getEnvVars()
-        env.put("GRADLE_PLUGIN_GRADLE_ENTERPRISE_ALLOW_UNTRUSTED_SERVER", "https://ge-unstable-release.grdev.net")
+        env.put("JENKINSGRADLEPLUGIN_BUILD_SCAN_INJECTION", "true")
+        env.put("JENKINSGRADLEPLUGIN_GRADLE_ENTERPRISE_URL", "https://ge-unstable-release.grdev.net")
+        env.put("JENKINSGRADLEPLUGIN_GRADLE_ENTERPRISE_ALLOW_UNTRUSTED_SERVER", "true")
         j.jenkins.getGlobalNodeProperties().add(prop)
 
         GlobalMavenConfig globalMavenConfig = j.get(GlobalMavenConfig.class);
