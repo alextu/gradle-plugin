@@ -66,7 +66,7 @@ public class MavenGeInjectorComputerListener extends ComputerListener {
     }
 
     private FilePath copyResourceToAgent(String resourceName, FilePath rootPath) throws IOException, InterruptedException {
-        FilePath lib = rootPath.createTempDir("ge", "lib").child(GE_MVN_LIB_NAME);
+        FilePath lib = rootPath.createTempDir("ge", "lib").child(resourceName);
         InputStream libIs = getClass().getResourceAsStream(resourceName);
         if (libIs == null) {
             throw new IllegalStateException("Could not find resource: " + resourceName);
